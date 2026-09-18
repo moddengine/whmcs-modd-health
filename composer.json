@@ -1,0 +1,27 @@
+{
+    "name": "moddengine/whmcs-modd-health",
+    "description": "WHMCS authoritative DNS and site health addon",
+    "require": {
+        "php": ">=8.3"
+    },
+    "require-dev": {
+        "moddengine/whmcs-plugin-updater": "^0.1.0",
+        "phpstan/phpstan": "^2.1"
+    },
+    "autoload": {
+        "classmap": [
+            "modules/addons/modd_health/lib/Core.php"
+        ]
+    },
+    "scripts": {
+        "analyse": "phpstan analyse --no-progress --memory-limit=256M",
+        "test": "@php -d zend.assertions=1 -d assert.exception=1 tests/run.php",
+        "qa": [
+            "@test",
+            "@analyse"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

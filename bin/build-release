@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+version=${1:-}
+repository=${GITHUB_REPOSITORY:-moddengine/whmcs-modd-health}
+asset="whmcs-modd-health-${version}.zip"
+
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Usage: $0 X.Y.Z" >&2; exit 2; }
+
+composer qa
+go test -mod=mod ./...
+actionlint
+shellcheck bin/build-release
+
+rm -rf build
+mkdir -p build/modules/addons/modd_health/bin
+cp -a modules/addons/modd_health/. build/modules/addons/modd_health/
+sed -Ei "s/'version' => '[0-9]+\.[0-9]+\.[0-9]+'/'version' => '$version'/" build/modules/addons/modd_health/modd_health.php
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=mod -trimpath -ldflags "-s -w -X github.com/moddengine/whmcs-modd-health/internal/health.Version=$version" -o build/modules/addons/modd_health/bin/modd-health-checker-linux-amd64 ./cmd/modd-health-checker
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -mod=mod -trimpath -ldflags "-s -w -X github.com/moddengine/whmcs-modd-health/internal/health.Version=$version" -o build/modules/addons/modd_health/bin/modd-health-checker-linux-arm64 ./cmd/modd-health-checker
+chmod 0755 build/modules/addons/modd_health/bin/modd-health-checker-linux-*
+php bin/generate-manifest build/modules/addons/modd_health "$repository"
+rm -f "$asset"
+(cd build && zip -qr "../$asset" modules)
+unzip -t "$asset"
+unzip -p "$asset" modules/addons/modd_health/whmcs.update-manifest.json | jq -e \
+  --arg version "$version" --arg repository "$repository" \
+  '.schema == 1 and .package == "moddengine/modd_health"
+   and .component == {"type":"addon","name":"modd_health"}
+   and .version == $version and .github.repository == $repository
+   and .github.asset == "whmcs-modd-health-{version}.zip"' >/dev/null
+echo "$asset"

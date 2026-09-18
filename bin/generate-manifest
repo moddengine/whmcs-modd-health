@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/moddengine/whmcs-plugin-updater/modules/addons/pluginupdater/lib/Core.php';
+
+$directory = $argv[1] ?? '';
+$repository = $argv[2] ?? '';
+if ($directory === '' || $repository === '') {
+    fwrite(STDERR, "Usage: php bin/generate-manifest DIRECTORY OWNER/REPOSITORY\n");
+    exit(2);
+}
+
+PluginUpdater\Manifest::generate(
+    $directory,
+    package: 'moddengine/modd_health',
+    repository: $repository,
+    asset: 'whmcs-modd-health-{version}.zip',
+    phpMin: '8.3.0',
+    whmcsMin: '8.13.0',
+    whmcsMaxExclusive: '10.0.0',
+);
