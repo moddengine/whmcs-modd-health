@@ -130,7 +130,8 @@ final class Core
         }
         $email = is_array($settings['email'] ?? null) ? $settings['email'] : [];
         foreach (['mx_pattern', 'spf_pattern', 'dkim_cname_pattern'] as $field) {
-            self::validateRE2((string) ($email[$field] ?? ''), $field);
+            $pattern = (string) ($email[$field] ?? '');
+            self::validateRE2($field === 'mx_pattern' ? str_replace('{domain}', 'example\\.com', $pattern) : $pattern, $field);
         }
         if (self::lines(implode("\n", is_array($email['dkim_selectors'] ?? null) ? $email['dkim_selectors'] : [])) === []) {
             throw new RuntimeException('At least one DKIM selector is required.');

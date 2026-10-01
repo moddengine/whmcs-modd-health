@@ -181,7 +181,7 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 	switch site.Profile {
 	case "email":
 		mx := records["mx"]
-		mxPattern := regexp.MustCompile(config.Email.MXPattern)
+		mxPattern := regexp.MustCompile(strings.ReplaceAll(config.Email.MXPattern, "{domain}", regexp.QuoteMeta(site.Domain)))
 		if len(mx) == 0 {
 			errs = append(errs, "missing MX record")
 		} else {

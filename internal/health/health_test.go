@@ -88,6 +88,28 @@ func TestAuthorityRequiresOneCompleteServer(t *testing.T) {
 	}
 }
 
+func TestMXPatternExpandsDomainLiterally(t *testing.T) {
+	config := validJob().Configuration
+	config.Email.MXPattern = `^mx\.{domain}$`
+	config.Email.DKIMCNAMEPattern = `^dkim\.example$`
+	if err := ValidateConfiguration(config); err != nil {
+		t.Fatalf("placeholder pattern should validate: %v", err)
+	}
+	site := Site{Domain: "example.com", Profile: "email"}
+	records := map[string][]string{
+		"mx":           {"mx.example.com"},
+		"spf":          {"v=spf1 -all"},
+		"dkim:default": {"dkim.example"},
+	}
+	if errors := validateAuthority(site, config, records); len(errors) != 0 {
+		t.Fatalf("placeholder pattern should match: %v", errors)
+	}
+	records["mx"] = []string{"mx.exampleXcom"}
+	if errors := validateAuthority(site, config, records); len(errors) == 0 {
+		t.Fatal("domain dots must be matched literally")
+	}
+}
+
 func TestOffsetIsStableAndInsideWindow(t *testing.T) {
 	first := Offset(42, 300)
 	if first != Offset(42, 300) || first < 0 || first >= 300*time.Second {

@@ -11,7 +11,7 @@ $settings['products']['email'] = [1];
 $settings['products']['legacy'] = [2];
 $settings['hosting_ipv4'] = ['192.0.2.10'];
 $settings['email'] = [
-    'mx_pattern' => '^mx\\.example$',
+    'mx_pattern' => '^mx\\.{domain}$',
     'spf_pattern' => '^v=spf1',
     'dkim_selectors' => ['default'],
     'dkim_cname_pattern' => '^dkim\\.example$',
