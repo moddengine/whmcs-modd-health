@@ -52,7 +52,7 @@ func (d DNSChecker) Check(ctx context.Context, site Site, config Configuration) 
 	var endpoints []endpoint
 	var resolutionErrors []string
 	for _, name := range nameservers {
-		addresses, lookupErr := resolver.LookupNetIP(ctx, "ip", name)
+		addresses, lookupErr := resolver.LookupNetIP(ctx, "ip4", name)
 		if lookupErr != nil {
 			resolutionErrors = append(resolutionErrors, fmt.Sprintf("%s address lookup failed: %v", name, lookupErr))
 			continue
