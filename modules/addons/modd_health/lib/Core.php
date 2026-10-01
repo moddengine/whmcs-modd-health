@@ -178,9 +178,6 @@ final class Core
         $sites = [];
         foreach ($rows as $row) {
             $domain = strtolower(rtrim(trim((string) $row->domain), '.'));
-            if (!self::validDomain($domain)) {
-                throw new RuntimeException("Service {$row->id} has an invalid domain.");
-            }
             $sites[] = [
                 'service_id' => (int) $row->id,
                 'client_id' => (int) $row->userid,
@@ -456,19 +453,6 @@ final class Core
         if (!$template && str_contains($value, '{')) {
             throw new RuntimeException('The Google Chat webhook cannot contain placeholders.');
         }
-    }
-
-    private static function validDomain(string $domain): bool
-    {
-        if (strlen($domain) > 253 || !str_contains($domain, '.')) {
-            return false;
-        }
-        foreach (explode('.', $domain) as $label) {
-            if (preg_match('/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/', $label) !== 1) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /** @param array<string,mixed> $value */

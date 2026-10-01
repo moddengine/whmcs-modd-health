@@ -66,6 +66,25 @@ func TestHTTPDoesNotFollowRedirects(t *testing.T) {
 	}
 }
 
+func TestInvalidDomainIsAnUnhealthySite(t *testing.T) {
+	job := validJob()
+	job.Sites[0].Domain = "invalid domain"
+	if err := ValidateJob(job); err != nil {
+		t.Fatalf("invalid site domain should not reject the job: %v", err)
+	}
+	result := CheckSite(context.Background(), DNSChecker{}, HTTPClient(), job.Sites[0], job.Configuration)
+	if result.Healthy || len(result.Checks) != 1 || result.Checks[0].Message != "invalid domain" {
+		t.Fatalf("invalid domain should fail only its site: %+v", result)
+	}
+}
+
+func TestEmailServiceUsesAddressDomain(t *testing.T) {
+	site := normalizeSiteDomain(Site{Domain: "customer+tag@example.com", Profile: "email"})
+	if site.Domain != "example.com" {
+		t.Fatalf("email address domain was not extracted: %q", site.Domain)
+	}
+}
+
 func TestAuthorityRequiresOneCompleteServer(t *testing.T) {
 	config := validJob().Configuration
 	site := Site{Profile: "container"}

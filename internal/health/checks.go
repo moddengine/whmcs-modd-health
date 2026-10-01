@@ -236,6 +236,10 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 
 func CheckSite(ctx context.Context, dns DNSChecker, client *http.Client, site Site, config Configuration) SiteResult {
 	result := SiteResult{ServiceID: site.ServiceID, CheckedAt: time.Now().UTC()}
+	if !ValidDomain(site.Domain) {
+		result.Checks = []Check{{Name: "domain", Message: "invalid domain"}}
+		return result
+	}
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {

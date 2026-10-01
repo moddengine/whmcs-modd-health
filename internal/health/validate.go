@@ -62,9 +62,6 @@ func ValidateJob(job Job) error {
 			return fmt.Errorf("duplicate service_id %d", site.ServiceID)
 		}
 		seen[site.ServiceID] = struct{}{}
-		if !ValidDomain(site.Domain) {
-			return fmt.Errorf("site %d has invalid domain", site.ServiceID)
-		}
 		if site.Profile != "email" && site.Profile != "legacy" && site.Profile != "container" {
 			return fmt.Errorf("site %d has invalid profile", site.ServiceID)
 		}

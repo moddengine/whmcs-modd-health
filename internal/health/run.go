@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,15 @@ func Offset(serviceID int64, window int) time.Duration {
 	hash := fnv.New32a()
 	fmt.Fprint(hash, serviceID)
 	return time.Duration(hash.Sum32()%uint32(window)) * time.Second
+}
+
+func normalizeSiteDomain(site Site) Site {
+	if site.Profile == "email" {
+		if at := strings.LastIndexByte(site.Domain, '@'); at >= 0 {
+			site.Domain = site.Domain[at+1:]
+		}
+	}
+	return site
 }
 
 func Run(ctx context.Context, job Job) (Summary, error) {
@@ -39,6 +49,7 @@ func Run(ctx context.Context, job Job) (Summary, error) {
 	errorsCh := make(chan error, len(job.Sites))
 	var wg sync.WaitGroup
 	for _, site := range job.Sites {
+		site = normalizeSiteDomain(site)
 		wg.Add(1)
 		go func(site Site) {
 			defer wg.Done()
