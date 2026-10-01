@@ -45,23 +45,7 @@ final class Core
     public static function save(array $post): void
     {
         $current = self::load();
-        $settings = [
-            'products' => [
-                'email' => self::ids($post['products_email'] ?? []),
-                'legacy' => self::ids($post['products_legacy'] ?? []),
-                'container' => self::ids($post['products_container'] ?? []),
-            ],
-            'hosting_ipv4' => self::lines((string) ($post['hosting_ipv4'] ?? '')),
-            'email' => [
-                'mx_pattern' => trim((string) ($post['mx_pattern'] ?? '')),
-                'spf_pattern' => trim((string) ($post['spf_pattern'] ?? '')),
-                'dkim_selectors' => self::lines((string) ($post['dkim_selectors'] ?? '')),
-                'dkim_cname_pattern' => trim((string) ($post['dkim_cname_pattern'] ?? '')),
-            ],
-            'legacy' => ['url_template' => trim((string) ($post['legacy_url_template'] ?? ''))],
-            'container' => ['url_template' => trim((string) ($post['container_url_template'] ?? ''))],
-            'database_tls' => (string) ($post['database_tls'] ?? 'disabled'),
-        ];
+        $settings = self::settingsFromPost($post);
         $webhook = trim((string) ($post['webhook_url'] ?? ''));
         $ciphertext = $current['webhook_ciphertext'];
         if (isset($post['clear_webhook'])) {
@@ -87,6 +71,31 @@ final class Core
             ['id' => 1],
             ['settings_json' => self::json($settings), 'webhook_ciphertext' => $ciphertext, 'updated_at' => gmdate('Y-m-d H:i:s')]
         );
+    }
+
+    /**
+     * @param array<string,mixed> $post
+     * @return array<string,mixed>
+     */
+    public static function settingsFromPost(array $post): array
+    {
+        return [
+            'products' => [
+                'email' => self::ids($post['products_email'] ?? []),
+                'legacy' => self::ids($post['products_legacy'] ?? []),
+                'container' => self::ids($post['products_container'] ?? []),
+            ],
+            'hosting_ipv4' => self::lines((string) ($post['hosting_ipv4'] ?? '')),
+            'email' => [
+                'mx_pattern' => trim((string) ($post['mx_pattern'] ?? '')),
+                'spf_pattern' => trim((string) ($post['spf_pattern'] ?? '')),
+                'dkim_selectors' => self::lines((string) ($post['dkim_selectors'] ?? '')),
+                'dkim_cname_pattern' => trim((string) ($post['dkim_cname_pattern'] ?? '')),
+            ],
+            'legacy' => ['url_template' => trim((string) ($post['legacy_url_template'] ?? ''))],
+            'container' => ['url_template' => trim((string) ($post['container_url_template'] ?? ''))],
+            'database_tls' => (string) ($post['database_tls'] ?? 'disabled'),
+        ];
     }
 
     /** @param array<string,mixed> $settings */

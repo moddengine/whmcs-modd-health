@@ -98,13 +98,14 @@ function modd_health_output(array $vars): void
         modd_health_render_failures();
         return;
     }
-    modd_health_render_configuration($moduleLink);
+    modd_health_render_configuration($moduleLink, $errors === [] ? null : $_POST);
 }
 
-function modd_health_render_configuration(string $moduleLink): void
+/** @param array<string,mixed>|null $post */
+function modd_health_render_configuration(string $moduleLink, ?array $post = null): void
 {
     $stored = Core::load();
-    $settings = $stored['settings'];
+    $settings = $post === null ? $stored['settings'] : Core::settingsFromPost($post);
     $selected = $settings['products'];
     $token = generate_token('plain');
     echo '<form method="post" action="' . Core::escape($moduleLink) . '&amp;tab=configuration"><input type="hidden" name="token" value="' . Core::escape($token) . '">';
@@ -131,7 +132,7 @@ function modd_health_render_configuration(string $moduleLink): void
         echo '<option value="' . $value . '"' . ($settings['database_tls'] === $value ? ' selected' : '') . '>' . Core::escape($label) . '</option>';
     }
     echo '</select></label></div>';
-    echo '<div class="mh-field"><label><strong>Google Chat webhook</strong><br><input autocomplete="new-password" type="password" name="webhook_url" value="" placeholder="' . ($stored['webhook_ciphertext'] !== '' ? 'Configured — leave blank to preserve' : 'Required') . '"></label><label><input type="checkbox" name="clear_webhook" value="1"> Clear stored webhook</label></div>';
+    echo '<div class="mh-field"><label><strong>Google Chat webhook</strong><br><input autocomplete="new-password" type="password" name="webhook_url" value="' . Core::escape((string) ($post['webhook_url'] ?? '')) . '" placeholder="' . ($stored['webhook_ciphertext'] !== '' ? 'Configured — leave blank to preserve' : 'Required') . '"></label><label><input type="checkbox" name="clear_webhook" value="1"' . (isset($post['clear_webhook']) ? ' checked' : '') . '> Clear stored webhook</label></div>';
     echo '<button class="btn btn-primary" type="submit">Save and validate</button></form>';
 }
 

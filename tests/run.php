@@ -18,6 +18,23 @@ $settings['email'] = [
 ];
 Core::validateSettings($settings, true);
 
+$posted = Core::settingsFromPost([
+    'products_email' => ['3'],
+    'hosting_ipv4' => "192.0.2.2\ninvalid",
+    'mx_pattern' => 'invalid pattern',
+    'spf_pattern' => '^v=spf1',
+    'dkim_selectors' => 'default',
+    'dkim_cname_pattern' => '^dkim\\.example$',
+    'legacy_url_template' => 'https://{domain}/legacy',
+    'container_url_template' => 'https://{domain}/container',
+    'database_tls' => 'required',
+]);
+assert($posted['products']['email'] === [3]);
+assert($posted['hosting_ipv4'] === ['192.0.2.2', 'invalid']);
+assert($posted['email']['mx_pattern'] === 'invalid pattern');
+assert($posted['container']['url_template'] === 'https://{domain}/container');
+assert($posted['database_tls'] === 'required');
+
 $duplicate = $settings;
 $duplicate['products']['container'] = [2];
 expectException(static fn () => Core::validateSettings($duplicate, true), 'more than one');
