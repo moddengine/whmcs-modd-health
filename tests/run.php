@@ -47,6 +47,11 @@ assert(str_contains($summary, 'Nameservers: ns1.example, ns2.example'));
 assert(str_contains($summary, 'A: 192.0.2.10'));
 assert(str_contains($summary, 'edm: UP'));
 assert(Core::reasons($result) === ['incorrect IP in A record', 'health check URL failed']);
+assert(Core::nameservers(['dns' => ['nameservers' => ['ns1.modd.net.au.', 'NS2.EXAMPLE']]]) === [
+    ['name' => 'ns1.modd.net.au.', 'preferred' => true],
+    ['name' => 'NS2.EXAMPLE', 'preferred' => false],
+]);
+assert(Core::nameservers(['dns' => ['nameservers' => ['n2.modd.net.au']]])[0]['preferred']);
 assert(Core::escape('<script>') === '&lt;script&gt;');
 
 echo "PHP checks passed\n";

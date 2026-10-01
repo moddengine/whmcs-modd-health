@@ -238,7 +238,7 @@ final class Core
         return dirname(__DIR__) . '/bin/modd-health-checker-linux-' . $suffix;
     }
 
-    /** @return array{dns:string,health:string}|null */
+    /** @return array{dns:string,health:string,nameservers:list<array{name:string,preferred:bool}>}|null */
     public static function serviceStatus(int $serviceID): ?array
     {
         if ($serviceID < 1 || !Capsule::schema()->hasTable('mod_modd_health_state')) {
@@ -255,7 +255,7 @@ final class Core
             if (!in_array((int) $service->packageid, $selected, true)) {
                 return null;
             }
-            return ['dns' => 'Pending first check', 'health' => 'Pending first check'];
+            return ['dns' => 'Pending first check', 'health' => 'Pending first check', 'nameservers' => []];
         }
         $result = json_decode((string) $row->checks_json, true);
         if (!is_array($result)) {
@@ -272,7 +272,23 @@ final class Core
             }
             $health = 'Down since ' . $since . ' (reason: ' . implode('; ', $reasons ?: ['required health checks failed']) . ')';
         }
-        return ['dns' => self::dnsSummary($result, (string) $row->profile), 'health' => $health];
+        return ['dns' => self::dnsSummary($result, (string) $row->profile), 'health' => $health, 'nameservers' => self::nameservers($result)];
+    }
+
+    /**
+     * @param array<string,mixed> $result
+     * @return list<array{name:string,preferred:bool}>
+     */
+    public static function nameservers(array $result): array
+    {
+        $nameservers = $result['dns']['nameservers'] ?? [];
+        if (!is_array($nameservers)) {
+            return [];
+        }
+        return array_values(array_map(static fn (string $name): array => [
+            'name' => $name,
+            'preferred' => in_array(strtolower(rtrim($name, '.')), ['ns1.modd.net.au', 'n2.modd.net.au'], true),
+        ], array_filter($nameservers, 'is_string')));
     }
 
     /** @param array<string,mixed> $result */
