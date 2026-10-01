@@ -85,6 +85,16 @@ func TestEmailServiceUsesAddressDomain(t *testing.T) {
 	}
 }
 
+func TestFallbackDomains(t *testing.T) {
+	parents := fallbackDomains("new.bautechnik.com.au")
+	if len(parents) != 2 || parents[0] != "bautechnik.com.au" || parents[1] != "com.au" {
+		t.Fatalf("unexpected fallback domains %q", parents)
+	}
+	if parents := fallbackDomains("example.com"); len(parents) != 0 {
+		t.Fatalf("two-label domain should not fall back to %q", parents)
+	}
+}
+
 func TestAuthorityRequiresOneCompleteServer(t *testing.T) {
 	config := validJob().Configuration
 	site := Site{Profile: "container"}

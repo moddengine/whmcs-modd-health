@@ -28,6 +28,13 @@ func (d DNSChecker) Check(ctx context.Context, site Site, config Configuration) 
 		port = "53"
 	}
 	nsRecords, err := resolver.LookupNS(ctx, site.Domain)
+	for _, parent := range fallbackDomains(site.Domain) {
+		var dnsErr *net.DNSError
+		if len(nsRecords) > 0 || (err != nil && (!errors.As(err, &dnsErr) || !dnsErr.IsNotFound)) {
+			break
+		}
+		nsRecords, err = resolver.LookupNS(ctx, parent)
+	}
 	if err != nil || len(nsRecords) == 0 {
 		message := "no delegated nameservers returned"
 		if err != nil {
@@ -107,6 +114,19 @@ func (d DNSChecker) Check(ctx context.Context, site Site, config Configuration) 
 			check,
 		},
 	}
+}
+
+func fallbackDomains(domain string) []string {
+	var parents []string
+	for range 2 {
+		_, parent, found := strings.Cut(domain, ".")
+		if !found || !strings.Contains(parent, ".") {
+			break
+		}
+		parents = append(parents, parent)
+		domain = parent
+	}
+	return parents
 }
 
 type dnsTask struct {
