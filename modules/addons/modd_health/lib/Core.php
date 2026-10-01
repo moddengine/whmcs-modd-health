@@ -351,6 +351,25 @@ final class Core
         return implode('; ', $parts);
     }
 
+    public static function dnsSummaryHTML(string $summary): string
+    {
+        return implode('; ', array_map(static function (string $part): string {
+            [$heading, $value] = array_pad(explode(': ', $part, 2), 2, null);
+            if ($value === null) {
+                return self::escape($part);
+            }
+            $value = self::escape($value);
+            if ($heading === 'Nameservers') {
+                $value = str_replace(
+                    ['ns1.modd.net.au', 'ns2.modd.net.au'],
+                    ['<span class="text-success">ns1.modd.net.au</span>', '<span class="text-success">ns2.modd.net.au</span>'],
+                    $value
+                );
+            }
+            return '<strong>' . self::escape($heading) . ':</strong> ' . $value;
+        }, explode('; ', $summary)));
+    }
+
     /**
      * @param array<string,mixed> $result
      * @return list<string>

@@ -63,6 +63,8 @@ $summary = Core::dnsSummary($result, 'container');
 assert(str_contains($summary, 'Nameservers: ns1.example, ns2.example'));
 assert(str_contains($summary, 'A: 192.0.2.10'));
 assert(str_contains($summary, 'edm: UP'));
+assert(Core::dnsSummaryHTML('Nameservers: ns1.modd.net.au, ns2.modd.net.au; A: 203.88.104.34; edm: UP') === '<strong>Nameservers:</strong> <span class="text-success">ns1.modd.net.au</span>, <span class="text-success">ns2.modd.net.au</span>; <strong>A:</strong> 203.88.104.34; <strong>edm:</strong> UP');
+assert(Core::dnsSummaryHTML('A: <script>') === '<strong>A:</strong> &lt;script&gt;');
 assert(Core::reasons($result) === ['incorrect IP in A record', 'health check URL failed']);
 assert(Core::nameservers(['dns' => ['nameservers' => ['ns1.modd.net.au.', 'NS2.EXAMPLE']]]) === [
     ['name' => 'ns1.modd.net.au.', 'preferred' => true],

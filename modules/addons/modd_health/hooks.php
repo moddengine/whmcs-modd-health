@@ -17,13 +17,8 @@ add_hook('AdminClientServicesTabFields', 1, static function (array $vars): array
     if ($status === null) {
         return [];
     }
-    $nameservers = $status['nameservers'] === [] ? 'none' : implode(', ', array_map(
-        static fn (array $nameserver): string => '<span' . ($nameserver['preferred'] ? ' class="text-success"' : '') . '>' . Core::escape($nameserver['name']) . '</span>',
-        $status['nameservers']
-    ));
     return [
-        'Nameservers' => $nameservers,
-        'DNS Status' => '<span class="modd-health-dns">' . Core::escape($status['dns']) . '</span>',
+        'DNS Status' => '<span class="modd-health-dns">' . Core::dnsSummaryHTML($status['dns']) . '</span>',
         'Health Status' => '<strong class="modd-health-state">' . Core::escape($status['health']) . '</strong>',
     ];
 });
@@ -42,8 +37,8 @@ add_hook('ClientAreaFooterOutput', 1, static function (array $vars): string {
     if ($status === null) {
         return '';
     }
-    $payload = json_encode(['nameservers' => $status['nameservers'], 'rows' => ['DNS Status' => $status['dns'], 'Health Status' => $status['health']]], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
-    return '<script>(()=>{const data=' . $payload . ';let table=document.querySelector("#tabOverview table, .product-details table");if(!table){const host=document.querySelector("#tabOverview .product-details, #tabOverview, .product-details");if(!host)return;table=document.createElement("table");table.className="table table-striped modd-health-table";host.appendChild(table)}const body=table.tBodies[0]||table.appendChild(document.createElement("tbody")),addRow=(label,value)=>{const tr=document.createElement("tr"),th=document.createElement("th"),td=document.createElement("td");th.textContent=label;if(typeof value==="string")td.textContent=value;else value.forEach((nameserver,index)=>{if(index)td.append(", ");const span=document.createElement("span");span.textContent=nameserver.name;if(nameserver.preferred)span.className="text-success";td.append(span)});tr.className="modd-health-row";tr.append(th,td);body.appendChild(tr)};addRow("Nameservers",data.nameservers.length?data.nameservers:"none");for(const [label,value] of Object.entries(data.rows))addRow(label,value)})();</script>';
+    $payload = json_encode(['rows' => ['DNS Status' => ['html' => Core::dnsSummaryHTML($status['dns'])], 'Health Status' => $status['health']]], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
+    return '<script>(()=>{const data=' . $payload . ';let table=document.querySelector("#tabOverview table, .product-details table");if(!table){const host=document.querySelector("#tabOverview .product-details, #tabOverview, .product-details");if(!host)return;table=document.createElement("table");table.className="table table-striped modd-health-table";host.appendChild(table)}const body=table.tBodies[0]||table.appendChild(document.createElement("tbody")),addRow=(label,value)=>{const tr=document.createElement("tr"),th=document.createElement("th"),td=document.createElement("td");th.textContent=label;if(typeof value==="string")td.textContent=value;else td.innerHTML=value.html;tr.className="modd-health-row";tr.append(th,td);body.appendChild(tr)};for(const [label,value] of Object.entries(data.rows))addRow(label,value)})();</script>';
 });
 
 add_hook('AdminHomeWidgets', 1, static function (): ModdHealthDashboardWidget {
