@@ -262,14 +262,14 @@ The first version intentionally excludes:
 - All three profiles validate service-domain SPF and DMARC. Legacy and container hosting require these only with usable MX; absent or sole null MX skips them. Email hosting always requires usable MX, SPF, DMARC, and its existing provider-pattern and DKIM checks.
 - SPF syntax follows RFC 7208, without resolving includes/redirects or evaluating lookup budgets. Exactly one policy is required, including on `edm` and `notify`. Preserve TXT multiplicity so identical duplicates fail validation; join character strings within each TXT record.
 - DMARC syntax and inherited policy discovery follow RFC 9989, including the eight-query bound, organizational-domain selection, and `psd` boundaries. Accept monitoring policies and the default `p=none` when omitted. Malformed or duplicate policies encountered during discovery are health failures.
-- Direct service-domain records remain authoritative queries; inherited parent policies use the system resolver. All lookups share the site deadline and one endpoint must satisfy the complete profile.
+- Direct service-domain records remain authoritative queries; inherited parent policies use the system resolver. All lookups share the site deadline. One authoritative endpoint or the system recursive resolver must satisfy the complete profile.
 - Authority observations add optional `checks` (existing Check objects) and `dmarc_policy_domain`; record maps retain `mx` and `spf` and add `dmarc`. No job/configuration/database schema migration is required.
 - WHMCS displays MX, SPF and DMARC validity, the selected policy domain, and skipped checks without merging partial authority responses. Historical results retain their prior display.
 
 ### Existing implementation
 
 - The WHMCS addon/component name is `modd_health`.
-- Delegated nameservers and their addresses are recorded. Required DNS records are queried directly from every delegated authoritative endpoint instead of through the caching resolver; one authoritative endpoint must satisfy the complete profile.
+- Delegated nameservers and their addresses are recorded. Required DNS records are queried directly from every delegated authoritative endpoint, with concurrent system recursive validation as a fallback. One endpoint or recursive validation must satisfy the complete profile. Successful recursive validation suppresses direct-query failures and warnings, including those caused by differing NS records or missing NS answers. Recursive results may remain cached until their TTL expires.
 - Admin and client service details show **DNS Status** and **Health Status**. Health is `UP` or `Down since d j Y H:i:s (reason: ...)`.
 - The administrator dashboard shows persisted UP/DOWN totals and links to the unhealthy-service list.
 - Legacy and Container health URL templates are configurable per profile in the addon UI.

@@ -19,6 +19,33 @@ type DNSChecker struct {
 }
 
 func (d DNSChecker) Check(ctx context.Context, site Site, config Configuration) DNSReport {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	resolver := d.System
+	if resolver == nil {
+		resolver = net.DefaultResolver
+	}
+	// Run alongside direct queries so a stalled authority cannot consume the fallback's deadline.
+	recursive := make(chan AuthorityObservation, 1)
+	go func() {
+		recursive <- queryAuthority(ctx, resolver, resolver, "system resolver", "", site, config)
+	}()
+	report := d.checkAuthorities(ctx, site, config)
+	if report.Healthy {
+		return report
+	}
+	if observation := <-recursive; observation.Healthy {
+		return DNSReport{
+			Healthy:     true,
+			Nameservers: report.Nameservers,
+			Authorities: []AuthorityObservation{observation},
+			Checks:      []Check{{Name: "recursive_dns", Healthy: true}},
+		}
+	}
+	return report
+}
+
+func (d DNSChecker) checkAuthorities(ctx context.Context, site Site, config Configuration) DNSReport {
 	resolver := d.System
 	if resolver == nil {
 		resolver = net.DefaultResolver

@@ -114,7 +114,7 @@ func txt(parts ...string) dnsAnswer {
 func mx(pref uint16, host string) dnsAnswer {
 	return dnsAnswer{15, append(binary.BigEndian.AppendUint16(nil, pref), dnsName(host)...)}
 }
-func dnsFixture(t *testing.T, records map[string][]dnsAnswer, failName string) (*net.Resolver, *atomic.Int32) {
+func dnsFixture(t *testing.T, records map[string][]dnsAnswer, failName string, referrals ...map[string][]dnsAnswer) (*net.Resolver, *atomic.Int32) {
 	t.Helper()
 	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
@@ -175,6 +175,23 @@ func dnsFixture(t *testing.T, records map[string][]dnsAnswer, failName string) (
 				}
 			}
 			binary.BigEndian.PutUint16(response[6:8], count)
+			if count == 0 && len(referrals) > 0 {
+				for zone, answers := range referrals[0] {
+					if name != zone && !strings.HasSuffix(name, "."+zone) {
+						continue
+					}
+					response[2], response[3] = 0x81, 0
+					for _, answer := range answers {
+						response = append(response, dnsName(zone)...)
+						response = binary.BigEndian.AppendUint16(response, answer.kind)
+						response = append(response, 0, 1, 0, 0, 0, 60)
+						response = binary.BigEndian.AppendUint16(response, uint16(len(answer.data)))
+						response = append(response, answer.data...)
+					}
+					binary.BigEndian.PutUint16(response[8:10], uint16(len(answers)))
+					break
+				}
+			}
 			_, _ = conn.WriteTo(response, addr)
 		}
 	}()
@@ -280,5 +297,69 @@ func TestDNSCheckerMailReport(t *testing.T) {
 	report := (DNSChecker{System: resolver, Port: port}).Check(ctx, Site{Domain: "example.com", Profile: "legacy"}, validJob().Configuration)
 	if !report.Healthy || len(report.Authorities) != 1 || report.Authorities[0].DMARCPolicyDomain != "example.com" {
 		t.Fatalf("unexpected report: %+v", report)
+	}
+}
+
+func TestDNSCheckerRecursiveFallback(t *testing.T) {
+	for _, mode := range []string{"delegated", "different ns", "missing ns", "bad ip", "bad spf", "missing mx", "dns error"} {
+		t.Run(mode, func(t *testing.T) {
+			// The recursive resolver can reach the child even though NS discovery selects the parent.
+			records := map[string][]dnsAnswer{
+				"example.com":            {{2, dnsName("parent.example.com")}},
+				"parent.example.com":     {{1, []byte{127, 0, 0, 1}}},
+				"sig.example.com":        {{1, []byte{192, 0, 2, 10}}},
+				"edm.sig.example.com":    {mx(10, "mx.example.com"), txt("v=spf1 -all")},
+				"notify.sig.example.com": {mx(10, "mx.example.com"), txt("v=spf1 -all")},
+			}
+			switch mode {
+			case "different ns":
+				records["sig.example.com"] = append(records["sig.example.com"], dnsAnswer{2, dnsName("advertised.example.com")})
+				records["advertised.example.com"] = []dnsAnswer{{1, []byte{127, 0, 0, 1}}}
+			case "missing ns":
+				delete(records, "example.com")
+			case "bad ip":
+				records["sig.example.com"] = []dnsAnswer{{1, []byte{192, 0, 2, 99}}}
+			case "bad spf":
+				records["edm.sig.example.com"] = []dnsAnswer{mx(10, "mx.example.com"), txt("v=spf1 broken")}
+			case "missing mx":
+				records["notify.sig.example.com"] = []dnsAnswer{txt("v=spf1 -all")}
+			}
+			failName := ""
+			if mode == "dns error" {
+				failName = "sig.example.com"
+			}
+			system, _ := dnsFixture(t, records, failName)
+			parent, _ := dnsFixture(t, nil, "", map[string][]dnsAnswer{
+				"sig.example.com": {{2, dnsName("actual.example.com")}},
+			})
+			conn, err := parent.Dial(context.Background(), "udp", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, port, err := net.SplitHostPort(conn.RemoteAddr().String())
+			conn.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			report := (DNSChecker{System: system, Port: port}).Check(ctx, Site{Domain: "sig.example.com", Profile: "container"}, validJob().Configuration)
+			want := mode == "delegated" || mode == "different ns" || mode == "missing ns"
+			if report.Healthy != want {
+				t.Fatalf("healthy=%v, want %v: %+v", report.Healthy, want, report)
+			}
+			if want {
+				for _, check := range report.Checks {
+					if !check.Healthy || check.Message != "" {
+						t.Fatalf("successful recursion retained a failure: %+v", check)
+					}
+				}
+				for _, observation := range report.Authorities {
+					if !observation.Healthy || len(observation.Errors) != 0 {
+						t.Fatalf("successful recursion retained authority warnings: %+v", observation)
+					}
+				}
+			}
+		})
 	}
 }
