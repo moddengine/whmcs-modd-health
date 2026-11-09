@@ -316,9 +316,38 @@ final class Core
                 }
             }
         }
+        $mailAuthority = null;
+        foreach ($authorities as $authority) {
+            if (is_array($authority) && isset($authority['checks'])) {
+                $mailAuthority ??= $authority;
+                if (!empty($authority['healthy'])) {
+                    $mailAuthority = $authority;
+                    break;
+                }
+            }
+        }
+        if ($mailAuthority !== null) {
+            $mailRecords = is_array($mailAuthority['records'] ?? null) ? $mailAuthority['records'] : [];
+            $mx = $mailRecords['mx'] ?? [];
+            $parts[] = 'MX: ' . ($mx === [] ? 'none' : implode(', ', $mx));
+            foreach (['spf', 'dmarc'] as $name) {
+                $status = 'not checked';
+                foreach ($mailAuthority['checks'] as $check) {
+                    if (($check['name'] ?? '') === $name) {
+                        $status = empty($check['healthy']) ? 'invalid (' . ($check['message'] ?? 'failed') . ')' : (($check['message'] ?? '') !== '' ? $check['message'] : 'valid');
+                    }
+                }
+                if ($name === 'dmarc' && !empty($mailAuthority['dmarc_policy_domain'])) {
+                    $status .= ' (policy: ' . $mailAuthority['dmarc_policy_domain'] . ')';
+                }
+                $parts[] = strtoupper($name) . ': ' . $status;
+            }
+        }
         if ($profile === 'email') {
-            $parts[] = 'MX: ' . self::recordText($records, 'mx');
-            $parts[] = 'SPF: ' . (($records['spf'] ?? []) !== [] ? 'present' : 'missing');
+            if ($mailAuthority === null) {
+                $parts[] = 'MX: ' . self::recordText($records, 'mx');
+                $parts[] = 'SPF: ' . (($records['spf'] ?? []) !== [] ? 'present' : 'missing');
+            }
             $selectors = [];
             foreach (array_keys($records) as $key) {
                 if (str_starts_with($key, 'dkim:')) {
@@ -333,7 +362,17 @@ final class Core
                     $up = false;
                     foreach ($authorities as $authority) {
                         $authorityRecords = is_array($authority) && is_array($authority['records'] ?? null) ? $authority['records'] : [];
-                        $up = $up || (($authorityRecords[$prefix . ':mx'] ?? []) !== [] && ($authorityRecords[$prefix . ':spf'] ?? []) !== []);
+                        $spfValid = ($authorityRecords[$prefix . ':spf'] ?? []) !== [];
+                        $mxValid = ($authorityRecords[$prefix . ':mx'] ?? []) !== [];
+                        foreach (is_array($authority) ? ($authority['checks'] ?? []) : [] as $check) {
+                            if (($check['name'] ?? '') === $prefix . ':mx') {
+                                $mxValid = !empty($check['healthy']);
+                            }
+                            if (($check['name'] ?? '') === $prefix . ':spf') {
+                                $spfValid = !empty($check['healthy']);
+                            }
+                        }
+                        $up = $up || ($mxValid && $spfValid);
                     }
                     $parts[] = $prefix . ': ' . ($up ? 'UP' : 'DOWN');
                 }

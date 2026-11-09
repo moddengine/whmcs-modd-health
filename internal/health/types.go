@@ -62,11 +62,13 @@ type Check struct {
 }
 
 type AuthorityObservation struct {
-	Nameserver string              `json:"nameserver"`
-	Address    string              `json:"address"`
-	Healthy    bool                `json:"healthy"`
-	Records    map[string][]string `json:"records,omitempty"`
-	Errors     []string            `json:"errors,omitempty"`
+	Checks            []Check             `json:"checks,omitempty"`
+	DMARCPolicyDomain string              `json:"dmarc_policy_domain,omitempty"`
+	Nameserver        string              `json:"nameserver"`
+	Address           string              `json:"address"`
+	Healthy           bool                `json:"healthy"`
+	Records           map[string][]string `json:"records,omitempty"`
+	Errors            []string            `json:"errors,omitempty"`
 }
 
 type DNSReport struct {

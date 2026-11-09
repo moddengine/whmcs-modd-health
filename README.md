@@ -33,6 +33,16 @@ The resulting `whmcs-modd-health-1.0.0.zip` includes the addon, both static Linu
 
 The PHP CLI must permit `proc_open`, `flock`, and execution of the bundled checker. The database user needs normal WHMCS table access; credentials and the webhook are transferred only through the checker's standard input and must not be written to logs.
 
+## Mail DNS checks
+
+All profiles check service-domain mail policies. Email hosting still requires usable MX records, its configured MX/SPF patterns, and DKIM CNAMEs. Legacy and container hosting require SPF and DMARC only when the service domain has a usable MX target; absent MX and a sole null MX (`0 .`) skip these policies. DNS errors and malformed null MX combinations fail health checks.
+
+SPF must be a single syntactically valid TXT policy. Container hosting also validates exactly one SPF policy on each of `edm` and `notify`, alongside their required MX records. DMARC accepts monitoring policies (`p=none`), including RFC 9989's default when `p` is omitted. Inherited policies use RFC 9989's bounded DNS tree walk and `psd` boundaries without a public-suffix-list dependency. Malformed or duplicate policies encountered during discovery fail the check.
+
+The service's own records are queried directly from each authoritative endpoint. Inherited DMARC policies use the system resolver because parents may have different authorities. One authoritative endpoint must satisfy the complete profile within the existing site timeout. The DNS summary shows SPF/DMARC validity, skipped checks, and the selected DMARC policy domain; older results keep their previous display.
+
+These checks validate syntax and publication. They do not resolve SPF includes/redirects, evaluate lookup budgets, or test mail delivery. Permissive policies are accepted. Deploying the updated checker may reveal failures under the existing two-observation confirmation rules. No configuration or database migration is needed.
+
 ## Removal
 
 Deactivation deliberately retains `mod_modd_health_config` and `mod_modd_health_state`. After taking a database backup and deactivating the addon, permanently remove its data with:

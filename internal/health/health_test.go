@@ -108,11 +108,21 @@ func TestAuthorityRequiresOneCompleteServer(t *testing.T) {
 		"a":          {"192.0.2.10"},
 		"notify:spf": {"v=spf1 -all"},
 	}
-	if len(validateAuthority(site, config, first)) == 0 || len(validateAuthority(site, config, second)) == 0 {
+	validate := func(records map[string][]string) []string {
+		errs := validateAuthority(site, config, records)
+		checks, _ := inspectMail(context.Background(), nil, nil, site, records)
+		for _, check := range checks {
+			if !check.Healthy {
+				errs = append(errs, check.Message)
+			}
+		}
+		return errs
+	}
+	if len(validate(first)) == 0 || len(validate(second)) == 0 {
 		t.Fatal("partial answers must not be combined into a passing authority")
 	}
 	first["notify:spf"] = []string{"v=spf1 -all"}
-	if errors := validateAuthority(site, config, first); len(errors) != 0 {
+	if errors := validate(first); len(errors) != 0 {
 		t.Fatalf("complete authority should pass: %v", errors)
 	}
 }

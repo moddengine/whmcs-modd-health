@@ -81,7 +81,7 @@ func (d DNSChecker) Check(ctx context.Context, site Site, config Configuration) 
 			authority := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return dialer.DialContext(ctx, network, net.JoinHostPort(endpoint.address, port))
 			}}
-			observations[index] = queryAuthority(ctx, authority, endpoint.name, endpoint.address, site, config)
+			observations[index] = queryAuthority(ctx, authority, resolver, endpoint.name, endpoint.address, site, config)
 		}(i, ep)
 	}
 	wg.Wait()
@@ -134,15 +134,11 @@ type dnsTask struct {
 	run func() ([]string, error)
 }
 
-func queryAuthority(ctx context.Context, resolver *net.Resolver, nameserver, address string, site Site, config Configuration) AuthorityObservation {
+func queryAuthority(ctx context.Context, resolver, system *net.Resolver, nameserver, address string, site Site, config Configuration) AuthorityObservation {
 	records := make(map[string][]string)
-	var tasks []dnsTask
+	tasks := []dnsTask{{"mx", func() ([]string, error) { return lookupMX(ctx, resolver, site.Domain) }}}
 	switch site.Profile {
 	case "email":
-		tasks = append(tasks,
-			dnsTask{"mx", func() ([]string, error) { return lookupMX(ctx, resolver, site.Domain) }},
-			dnsTask{"spf", func() ([]string, error) { return lookupSPF(ctx, resolver, site.Domain) }},
-		)
 		for _, selector := range config.Email.DKIMSelectors {
 			name := selector + "._domainkey." + site.Domain
 			tasks = append(tasks, dnsTask{"dkim:" + selector, func() ([]string, error) { return lookupCNAME(ctx, resolver, name) }})
@@ -169,18 +165,24 @@ func queryAuthority(ctx context.Context, resolver *net.Resolver, nameserver, add
 	for _, task := range tasks {
 		go func(task dnsTask) {
 			values, err := task.run()
-			results <- result{task.key, uniqueSorted(values), err}
+			results <- result{task.key, values, err}
 		}(task)
 	}
 	for range tasks {
 		item := <-results
 		records[item.key] = item.values
-		if item.err != nil {
+		if item.err != nil && !(item.key == "mx" && site.Profile != "email" && isNotFound(item.err)) {
 			records[item.key+":error"] = []string{item.err.Error()}
 		}
 	}
 
+	checks, policyDomain := inspectMail(ctx, resolver, system, site, records)
 	errs := validateAuthority(site, config, records)
+	for _, check := range checks {
+		if !check.Healthy {
+			errs = append(errs, check.Name+": "+check.Message)
+		}
+	}
 	for key, values := range records {
 		if strings.HasSuffix(key, ":error") && len(values) > 0 {
 			errs = append(errs, fmt.Sprintf("%s via %s: %s", strings.TrimSuffix(key, ":error"), nameserver, values[0]))
@@ -188,11 +190,13 @@ func queryAuthority(ctx context.Context, resolver *net.Resolver, nameserver, add
 		}
 	}
 	return AuthorityObservation{
-		Nameserver: nameserver,
-		Address:    address,
-		Healthy:    len(errs) == 0,
-		Records:    records,
-		Errors:     uniqueSorted(errs),
+		Nameserver:        nameserver,
+		Address:           address,
+		Healthy:           len(errs) == 0,
+		Records:           records,
+		Errors:            uniqueSorted(errs),
+		Checks:            checks,
+		DMARCPolicyDomain: policyDomain,
 	}
 }
 
@@ -212,9 +216,7 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 			}
 		}
 		spf := records["spf"]
-		if len(spf) != 1 {
-			errs = append(errs, "expected exactly one SPF record")
-		} else if !regexp.MustCompile(config.Email.SPFPattern).MatchString(spf[0]) {
+		if len(spf) == 1 && !regexp.MustCompile(config.Email.SPFPattern).MatchString(spf[0]) {
 			errs = append(errs, "SPF record did not match expected pattern")
 		}
 		dkimPattern := regexp.MustCompile(config.Email.DKIMCNAMEPattern)
@@ -244,9 +246,6 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 			for _, prefix := range []string{"edm", "notify"} {
 				if len(records[prefix+":mx"]) == 0 {
 					errs = append(errs, "missing MX record for "+prefix)
-				}
-				if len(records[prefix+":spf"]) == 0 {
-					errs = append(errs, "missing SPF record for "+prefix)
 				}
 			}
 		}
@@ -322,7 +321,14 @@ func lookupMX(ctx context.Context, resolver *net.Resolver, name string) ([]strin
 	records, err := resolver.LookupMX(ctx, name)
 	values := make([]string, 0, len(records))
 	for _, record := range records {
-		values = append(values, normalizeName(record.Host))
+		if record.Host == "." {
+			values = append(values, ".")
+			if record.Pref != 0 || len(records) != 1 {
+				return values, errors.New("invalid null MX record")
+			}
+		} else {
+			values = append(values, normalizeName(record.Host))
+		}
 	}
 	return values, err
 }
@@ -331,7 +337,7 @@ func lookupSPF(ctx context.Context, resolver *net.Resolver, name string) ([]stri
 	records, err := resolver.LookupTXT(ctx, name)
 	var values []string
 	for _, record := range records {
-		if strings.HasPrefix(record, "v=spf1") {
+		if strings.EqualFold(record, "v=spf1") || (len(record) > 6 && strings.EqualFold(record[:6], "v=spf1") && record[6] == ' ') {
 			values = append(values, record)
 		}
 	}

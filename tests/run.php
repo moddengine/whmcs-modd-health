@@ -73,6 +73,44 @@ assert(Core::nameservers(['dns' => ['nameservers' => ['ns1.modd.net.au.', 'NS2.E
 assert(Core::nameservers(['dns' => ['nameservers' => ['n2.modd.net.au']]])[0]['preferred']);
 assert(Core::escape('<script>') === '&lt;script&gt;');
 
+$modern = $result;
+$modern['dns']['authorities'] = [[
+    'healthy' => true,
+    'records' => ['mx' => ['mx.example'], 'spf' => ['v=spf1 -all'], 'dmarc' => ['v=DMARC1; p=none']],
+    'checks' => [
+        ['name' => 'mx', 'healthy' => true],
+        ['name' => 'spf', 'healthy' => true],
+        ['name' => 'dmarc', 'healthy' => true],
+    ],
+    'dmarc_policy_domain' => 'example.com',
+]];
+foreach (['email', 'legacy', 'container'] as $profile) {
+    $summary = Core::dnsSummary($modern, $profile);
+    assert(str_contains($summary, 'MX: mx.example'));
+    assert(str_contains($summary, 'SPF: valid'));
+    assert(str_contains($summary, 'DMARC: valid (policy: example.com)'));
+}
+$modern['dns']['authorities'][0]['checks'][1] = ['name' => 'spf', 'healthy' => false, 'message' => 'duplicate SPF <script>'];
+$summary = Core::dnsSummary($modern, 'legacy');
+assert(str_contains($summary, 'SPF: invalid (duplicate SPF <script>)'));
+assert(str_contains(Core::dnsSummaryHTML($summary), '&lt;script&gt;'));
+$modern['dns']['authorities'][0]['checks'][1] = ['name' => 'spf', 'healthy' => true, 'message' => 'not applicable (no mail service)'];
+$modern['dns']['authorities'][0]['checks'][2] = ['name' => 'dmarc', 'healthy' => true, 'message' => 'not applicable (no mail service)'];
+$modern['dns']['authorities'][0]['records']['mx'] = [];
+unset($modern['dns']['authorities'][0]['dmarc_policy_domain']);
+assert(str_contains(Core::dnsSummary($modern, 'legacy'), 'DMARC: not applicable (no mail service)'));
+$modern['dns']['authorities'][0]['records']['notify:mx'] = ['mx.example'];
+$modern['dns']['authorities'][0]['records']['notify:spf'] = ['v=spf1 broken'];
+$modern['dns']['authorities'][0]['checks'][] = ['name' => 'notify:spf', 'healthy' => false];
+assert(str_contains(Core::dnsSummary($modern, 'container'), 'notify: DOWN'));
+// A healthy complete authority wins over a partial response.
+$partial = $modern['dns']['authorities'][0];
+$partial['healthy'] = false;
+$partial['checks'][1] = ['name' => 'spf', 'healthy' => false];
+$modern['dns']['authorities'][] = $partial;
+assert(str_contains(Core::dnsSummary($modern, 'legacy'), 'SPF: not applicable'));
+assert(!str_contains(Core::dnsSummary($result, 'legacy'), 'DMARC:'));
+
 echo "PHP checks passed\n";
 
 function expectException(callable $callback, string $contains): void
