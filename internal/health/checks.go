@@ -124,7 +124,11 @@ func (d DNSChecker) checkAuthorities(ctx context.Context, site Site, config Conf
 		if observation.Healthy {
 			healthy = true
 		} else {
-			failures = append(failures, observation.Errors...)
+			for _, check := range observation.Checks {
+				if !check.Healthy && !strings.HasPrefix(check.Message, "not checked") {
+					failures = append(failures, check.Name+": "+check.Message)
+				}
+			}
 		}
 	}
 	failures = append(failures, resolutionErrors...)
@@ -189,6 +193,7 @@ func queryAuthority(ctx context.Context, resolver, system *net.Resolver, nameser
 		err    error
 	}
 	results := make(chan result, len(tasks))
+	lookupErrors := make(map[string]error)
 	for _, task := range tasks {
 		go func(task dnsTask) {
 			values, err := task.run()
@@ -200,14 +205,30 @@ func queryAuthority(ctx context.Context, resolver, system *net.Resolver, nameser
 		records[item.key] = item.values
 		if item.err != nil && !(item.key == "mx" && site.Profile != "email" && isNotFound(item.err)) {
 			records[item.key+":error"] = []string{item.err.Error()}
+			lookupErrors[item.key] = item.err
 		}
 	}
 
 	checks, policyDomain := inspectMail(ctx, resolver, system, site, records)
-	errs := validateAuthority(site, config, records)
+	var errs []string
+	for _, message := range validateAuthority(site, config, records) {
+		checks = append(checks, Check{Name: "records", Message: message})
+	}
 	for _, check := range checks {
 		if !check.Healthy {
 			errs = append(errs, check.Name+": "+check.Message)
+		}
+	}
+	for key, err := range lookupErrors {
+		found := false
+		for i := range checks {
+			if checks[i].Name == key {
+				checks[i].Message = dnsErrorMessage(err)
+				found = true
+			}
+		}
+		if !found {
+			checks = append(checks, Check{Name: key, Message: dnsErrorMessage(err)})
 		}
 	}
 	for key, values := range records {
@@ -233,9 +254,7 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 	case "email":
 		mx := records["mx"]
 		mxPattern := regexp.MustCompile(strings.ReplaceAll(config.Email.MXPattern, "{domain}", regexp.QuoteMeta(site.Domain)))
-		if len(mx) == 0 {
-			errs = append(errs, "missing MX record")
-		} else {
+		if len(mx) > 0 {
 			for _, target := range mx {
 				if !mxPattern.MatchString(target) {
 					errs = append(errs, "MX record did not match expected pattern: "+target)
@@ -248,6 +267,9 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 		}
 		dkimPattern := regexp.MustCompile(config.Email.DKIMCNAMEPattern)
 		for _, selector := range config.Email.DKIMSelectors {
+			if len(records["dkim:"+selector+":error"]) > 0 {
+				continue
+			}
 			values := records["dkim:"+selector]
 			if len(values) != 1 {
 				errs = append(errs, "missing DKIM CNAME for "+selector)
@@ -261,7 +283,7 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 		for _, value := range config.HostingIPv4 {
 			allowed[value] = struct{}{}
 		}
-		if len(addresses) == 0 {
+		if len(addresses) == 0 && len(records["a:error"]) == 0 {
 			errs = append(errs, "missing A record")
 		}
 		for _, address := range addresses {
@@ -269,15 +291,23 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 				errs = append(errs, "incorrect IP in A record: "+address)
 			}
 		}
-		if site.Profile == "container" {
-			for _, prefix := range []string{"edm", "notify"} {
-				if len(records[prefix+":mx"]) == 0 {
-					errs = append(errs, "missing MX record for "+prefix)
-				}
-			}
-		}
 	}
 	return errs
+}
+
+func dnsErrorMessage(err error) string {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		switch {
+		case dnsErr.IsNotFound:
+			return "record not found"
+		case dnsErr.IsTimeout:
+			return "DNS lookup timed out"
+		default:
+			return "DNS lookup failed"
+		}
+	}
+	return err.Error()
 }
 
 func CheckSite(ctx context.Context, dns DNSChecker, client *http.Client, site Site, config Configuration) SiteResult {

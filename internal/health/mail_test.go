@@ -363,3 +363,43 @@ func TestDNSCheckerRecursiveFallback(t *testing.T) {
 		})
 	}
 }
+
+func TestDNSFailureSummary(t *testing.T) {
+	for _, mode := range []string{"missing", "lookup failure"} {
+		t.Run(mode, func(t *testing.T) {
+			records := map[string][]dnsAnswer{
+				"example.com":     {{2, dnsName("ns.example.com")}, {1, []byte{192, 0, 2, 10}}},
+				"ns.example.com":  {{1, []byte{127, 0, 0, 1}}},
+				"edm.example.com": {mx(10, "mx.example.com"), txt("v=spf1 -all")},
+			}
+			failName := ""
+			if mode == "lookup failure" {
+				failName = "notify.example.com"
+			}
+			resolver, _ := dnsFixture(t, records, failName)
+			conn, err := resolver.Dial(context.Background(), "udp", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, port, err := net.SplitHostPort(conn.RemoteAddr().String())
+			conn.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			// Absolute names keep the host's search suffix from changing SERVFAIL into NODATA.
+			report := (DNSChecker{System: resolver, Port: port}).Check(ctx, Site{Domain: "example.com.", Profile: "container"}, validJob().Configuration)
+			want := "notify:mx: record not found; notify:spf: record not found"
+			if mode == "lookup failure" {
+				want = "notify:mx: DNS lookup failed; notify:spf: DNS lookup failed"
+			}
+			if report.Healthy || report.Checks[1].Message != want {
+				t.Fatalf("expected %q, got %+v", want, report)
+			}
+			if mode == "lookup failure" && !strings.Contains(strings.Join(report.Authorities[0].Errors, "; "), "server misbehaving") {
+				t.Fatal("detailed DNS diagnostics were lost")
+			}
+		})
+	}
+}

@@ -41,6 +41,8 @@ SPF must be a single syntactically valid TXT policy. Container hosting also vali
 
 The service's own records are queried directly from each authoritative endpoint. Inherited DMARC policies use the system resolver because parents may have different authorities. The complete profile is also checked through the system recursive resolver alongside direct queries, within the existing site timeout. If no authoritative endpoint passes but recursive resolution satisfies the complete profile, the site passes using those recursive results without direct-query warnings. NS differences or missing NS answers alone do not fail a site that passes recursive validation. Recursive answers may be cached until their TTL expires. The DNS summary shows SPF/DMARC validity, skipped checks, and the selected DMARC policy domain; older results keep their previous display.
 
+Health reasons summarize each failing record once across authoritative servers. Lookup failures are distinguished from missing records; detailed server errors remain in the saved authority observations.
+
 These checks validate syntax and publication. They do not resolve SPF includes/redirects, evaluate lookup budgets, or test mail delivery. Permissive policies are accepted. Deploying the updated checker may reveal failures under the existing two-observation confirmation rules. No configuration or database migration is needed.
 
 ## Removal

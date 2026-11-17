@@ -355,7 +355,7 @@ func inspectMail(ctx context.Context, direct, system *net.Resolver, site Site, r
 		mxCheck.Message = records["mx:error"][0]
 	}
 	hasMail := len(mx) > 0 && !(len(mx) == 1 && mx[0] == ".")
-	if site.Profile == "email" && !hasMail {
+	if site.Profile == "email" && !hasMail && len(records["mx:error"]) == 0 {
 		mxCheck.Healthy = false
 		mxCheck.Message = "missing usable MX record"
 	}
@@ -379,7 +379,8 @@ func inspectMail(ctx context.Context, direct, system *net.Resolver, site Site, r
 		}{{"spf", spf, spfErr}, {"dmarc", dmarc, dmarcErr}} {
 			check := Check{Name: result.name, Healthy: result.err == nil, Values: result.values}
 			if result.err != nil {
-				check.Message = result.err.Error()
+				check.Message = dnsErrorMessage(result.err)
+				records[result.name+":error"] = []string{result.err.Error()}
 			}
 			checks = append(checks, check)
 		}
