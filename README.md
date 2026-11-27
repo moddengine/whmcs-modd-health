@@ -21,7 +21,7 @@ The resulting `whmcs-modd-health-1.0.0.zip` includes the addon, both static Linu
 ## Installation
 
 1. Extract the release at the WHMCS root so `modules/addons/modd_health` is created.
-2. Confirm both files under `modules/addons/modd_health/bin` are executable by the WHMCS cron user.
+2. If ZIP extraction strips execute permissions, the addon restores them before launching the checker. If the WHMCS user cannot change the file permissions, make the files under `modules/addons/modd_health/bin` executable as the file owner.
 3. Activate **Modd Health** under **System Settings → Addon Modules** and grant access only to appropriate administrator roles.
 4. Open **Addons → Modd Health**, assign products to profiles, and configure DNS patterns, permitted IPs, health URLs, database TLS, and the Google Chat webhook.
 5. Allow the cron host outbound TCP and UDP port 53 to public authoritative nameservers and HTTPS to monitored sites and Google Chat.

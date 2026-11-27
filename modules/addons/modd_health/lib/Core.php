@@ -215,8 +215,18 @@ final class Core
     public static function runChecker(array $arguments, string $stdin): array
     {
         $binary = self::binaryPath();
-        if (!is_file($binary) || !is_executable($binary)) {
-            throw new RuntimeException("Checker binary is missing or not executable: {$binary}");
+        if (!is_file($binary)) {
+            throw new RuntimeException("Checker binary is missing: {$binary}");
+        }
+        if (!is_executable($binary)) {
+            $mode = @fileperms($binary);
+            if ($mode !== false) {
+                @chmod($binary, ($mode & 0777) | (0111 & ~umask()));
+            }
+            clearstatcache();
+            if (!is_executable($binary)) {
+                throw new RuntimeException("Unable to make the checker binary executable: {$binary}");
+            }
         }
         $command = array_merge([$binary], $arguments);
         $pipes = [];
