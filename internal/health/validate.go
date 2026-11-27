@@ -77,9 +77,8 @@ func ValidateConfiguration(config Configuration) error {
 		}
 	}
 	for name, pattern := range map[string]string{
-		"email MX":   strings.ReplaceAll(config.Email.MXPattern, "{domain}", `example\.com`),
-		"email SPF":  config.Email.SPFPattern,
-		"DKIM CNAME": config.Email.DKIMCNAMEPattern,
+		"email MX":  strings.ReplaceAll(config.Email.MXPattern, "{domain}", `example\.com`),
+		"email SPF": config.Email.SPFPattern,
 	} {
 		if pattern == "" {
 			return fmt.Errorf("%s pattern is required", name)

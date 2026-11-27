@@ -40,3 +40,7 @@ Deactivation deliberately retains `mod_modd_health_config` and `mod_modd_health_
 ```sql
 DROP TABLE mod_modd_health_state, mod_modd_health_config;
 ```
+
+## DKIM checks
+
+Email profiles require a DKIM TXT public key at each configured selector (`<selector>._domainkey.<domain>`). TXT character strings within a record are joined before validation. RSA keys (at least 1024 bits) and Ed25519 keys are supported; missing, multiple, malformed, and revoked keys fail. This checks published keys, not email signatures. The former DKIM CNAME pattern is ignored on upgrade and no longer appears in settings. Selectors remain unchanged; configure the selector used by your mail server (for example, `axigen`).

@@ -145,7 +145,7 @@ func queryAuthority(ctx context.Context, resolver *net.Resolver, nameserver, add
 		)
 		for _, selector := range config.Email.DKIMSelectors {
 			name := selector + "._domainkey." + site.Domain
-			tasks = append(tasks, dnsTask{"dkim:" + selector, func() ([]string, error) { return lookupCNAME(ctx, resolver, name) }})
+			tasks = append(tasks, dnsTask{"dkim:" + selector, func() ([]string, error) { return resolver.LookupTXT(ctx, name) }})
 		}
 	case "legacy":
 		tasks = append(tasks, dnsTask{"a", func() ([]string, error) { return lookupA(ctx, resolver, site.Domain) }})
@@ -217,13 +217,12 @@ func validateAuthority(site Site, config Configuration, records map[string][]str
 		} else if !regexp.MustCompile(config.Email.SPFPattern).MatchString(spf[0]) {
 			errs = append(errs, "SPF record did not match expected pattern")
 		}
-		dkimPattern := regexp.MustCompile(config.Email.DKIMCNAMEPattern)
 		for _, selector := range config.Email.DKIMSelectors {
 			values := records["dkim:"+selector]
 			if len(values) != 1 {
-				errs = append(errs, "missing DKIM CNAME for "+selector)
-			} else if !dkimPattern.MatchString(values[0]) {
-				errs = append(errs, "DKIM CNAME did not match expected pattern for "+selector)
+				errs = append(errs, "expected exactly one DKIM TXT record for "+selector)
+			} else if err := validateDKIMKey(values[0]); err != nil {
+				errs = append(errs, "invalid DKIM TXT record for "+selector+": "+err.Error())
 			}
 		}
 	case "legacy", "container":
@@ -336,18 +335,6 @@ func lookupSPF(ctx context.Context, resolver *net.Resolver, name string) ([]stri
 		}
 	}
 	return values, err
-}
-
-func lookupCNAME(ctx context.Context, resolver *net.Resolver, name string) ([]string, error) {
-	target, err := resolver.LookupCNAME(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-	target = normalizeName(target)
-	if target == normalizeName(name) {
-		return nil, errors.New("record is not a CNAME")
-	}
-	return []string{target}, nil
 }
 
 func normalizeName(value string) string { return strings.TrimSuffix(strings.ToLower(value), ".") }
