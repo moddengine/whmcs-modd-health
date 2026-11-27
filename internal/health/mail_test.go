@@ -204,14 +204,13 @@ func dnsFixture(t *testing.T, records map[string][]dnsAnswer, failName string, r
 func TestMailProfilesWithDNS(t *testing.T) {
 	config := validJob().Configuration
 	config.Email.MXPattern = ".*"
-	config.Email.DKIMCNAMEPattern = ".*"
 	for _, profile := range []string{"legacy", "container", "email"} {
 		for _, mode := range []string{"valid", "no mx", "null mx", "bad null", "mixed null", "dns error", "duplicate spf", "bad dmarc", "bad subdomain spf", "inherited"} {
 			t.Run(profile+"/"+mode, func(t *testing.T) {
 				records := map[string][]dnsAnswer{
 					"example.com":                    {{1, []byte{192, 0, 2, 10}}, mx(10, "mx.example.com"), txt("v=spf1 ", "-all"), txt("verification=unrelated")},
 					"_dmarc.example.com":             {txt("v=DMARC1; ", "p=none")},
-					"default._domainkey.example.com": {{5, dnsName("dkim.example.com")}},
+					"default._domainkey.example.com": {txt(testDKIMRecord[:200], testDKIMRecord[200:])},
 					"edm.example.com":                {mx(10, "mx.example.com"), txt("v=spf1 -all")},
 					"notify.example.com":             {mx(10, "mx.example.com"), txt("v=spf1 -all")},
 				}
@@ -301,7 +300,7 @@ func TestDNSCheckerMailReport(t *testing.T) {
 }
 
 func TestDNSCheckerRecursiveFallback(t *testing.T) {
-	for _, mode := range []string{"delegated", "different ns", "missing ns", "bad ip", "bad spf", "missing mx", "dns error"} {
+	for _, mode := range []string{"delegated", "different ns", "missing ns", "authority servfail", "bad ip", "bad spf", "missing mx", "dns error"} {
 		t.Run(mode, func(t *testing.T) {
 			// The recursive resolver can reach the child even though NS discovery selects the parent.
 			records := map[string][]dnsAnswer{
@@ -329,9 +328,18 @@ func TestDNSCheckerRecursiveFallback(t *testing.T) {
 				failName = "sig.example.com"
 			}
 			system, _ := dnsFixture(t, records, failName)
-			parent, _ := dnsFixture(t, nil, "", map[string][]dnsAnswer{
+			domain := "sig.example.com"
+			referrals := map[string][]dnsAnswer{
 				"sig.example.com": {{2, dnsName("actual.example.com")}},
-			})
+			}
+			var directRecords map[string][]dnsAnswer
+			directFailName := ""
+			if mode == "authority servfail" {
+				directRecords, referrals = records, nil
+				directFailName = "notify." + domain
+				domain += "." // Preserve SERVFAIL when the host has a DNS search suffix.
+			}
+			parent, _ := dnsFixture(t, directRecords, directFailName, referrals)
 			conn, err := parent.Dial(context.Background(), "udp", "")
 			if err != nil {
 				t.Fatal(err)
@@ -343,12 +351,15 @@ func TestDNSCheckerRecursiveFallback(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			report := (DNSChecker{System: system, Port: port}).Check(ctx, Site{Domain: "sig.example.com", Profile: "container"}, validJob().Configuration)
-			want := mode == "delegated" || mode == "different ns" || mode == "missing ns"
+			report := (DNSChecker{System: system, Port: port}).Check(ctx, Site{Domain: domain, Profile: "container"}, validJob().Configuration)
+			want := mode == "delegated" || mode == "different ns" || mode == "missing ns" || mode == "authority servfail"
 			if report.Healthy != want {
 				t.Fatalf("healthy=%v, want %v: %+v", report.Healthy, want, report)
 			}
 			if want {
+				if len(report.Authorities) != 1 || report.Authorities[0].Nameserver != "system resolver" {
+					t.Fatalf("expected a recursive DNS observation: %+v", report)
+				}
 				for _, check := range report.Checks {
 					if !check.Healthy || check.Message != "" {
 						t.Fatalf("successful recursion retained a failure: %+v", check)

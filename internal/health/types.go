@@ -36,10 +36,11 @@ type Configuration struct {
 }
 
 type EmailConfig struct {
-	MXPattern        string   `json:"mx_pattern"`
-	SPFPattern       string   `json:"spf_pattern"`
-	DKIMSelectors    []string `json:"dkim_selectors"`
-	DKIMCNAMEPattern string   `json:"dkim_cname_pattern"`
+	MXPattern     string   `json:"mx_pattern"`
+	SPFPattern    string   `json:"spf_pattern"`
+	DKIMSelectors []string `json:"dkim_selectors"`
+	// Deprecated: accepted for existing saved configurations; DKIM uses TXT keys.
+	DKIMCNAMEPattern string `json:"dkim_cname_pattern,omitempty"`
 }
 
 type HTTPConfig struct {

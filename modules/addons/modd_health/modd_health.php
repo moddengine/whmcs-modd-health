@@ -123,8 +123,7 @@ function modd_health_render_configuration(string $moduleLink, ?array $post = nul
     modd_health_textarea('hosting_ipv4', 'Permitted hosting IPv4 addresses', implode("\n", $settings['hosting_ipv4']), 'One IPv4 address per line. Shared by Legacy and Container profiles.');
     modd_health_input('mx_pattern', 'Email MX RE2 pattern', (string) $settings['email']['mx_pattern'], 'Example: ^mx\\.{domain}$ (no surrounding / characters).');
     modd_health_input('spf_pattern', 'Email SPF RE2 pattern', (string) $settings['email']['spf_pattern']);
-    modd_health_textarea('dkim_selectors', 'DKIM selectors', implode("\n", $settings['email']['dkim_selectors']), 'One selector per line.');
-    modd_health_input('dkim_cname_pattern', 'DKIM CNAME RE2 pattern', (string) $settings['email']['dkim_cname_pattern']);
+    modd_health_textarea('dkim_selectors', 'DKIM selectors', implode("\n", $settings['email']['dkim_selectors']), 'One selector per line. Each selector must publish a DKIM TXT public key.');
     modd_health_input('legacy_url_template', 'Legacy health URL', (string) $settings['legacy']['url_template']);
     modd_health_input('container_url_template', 'Container health URL', (string) $settings['container']['url_template']);
     echo '<div class="mh-field"><label><strong>Database TLS</strong><br><select name="database_tls">';

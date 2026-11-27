@@ -20,7 +20,7 @@ final class Core
         return [
             'products' => ['email' => [], 'legacy' => [], 'container' => []],
             'hosting_ipv4' => [],
-            'email' => ['mx_pattern' => '', 'spf_pattern' => '', 'dkim_selectors' => [], 'dkim_cname_pattern' => ''],
+            'email' => ['mx_pattern' => '', 'spf_pattern' => '', 'dkim_selectors' => []],
             'legacy' => ['url_template' => 'https://{domain}/~/health/check'],
             'container' => ['url_template' => 'https://{domain}/~/health/check'],
             'database_tls' => 'disabled',
@@ -90,7 +90,6 @@ final class Core
                 'mx_pattern' => trim((string) ($post['mx_pattern'] ?? '')),
                 'spf_pattern' => trim((string) ($post['spf_pattern'] ?? '')),
                 'dkim_selectors' => self::lines((string) ($post['dkim_selectors'] ?? '')),
-                'dkim_cname_pattern' => trim((string) ($post['dkim_cname_pattern'] ?? '')),
             ],
             'legacy' => ['url_template' => trim((string) ($post['legacy_url_template'] ?? ''))],
             'container' => ['url_template' => trim((string) ($post['container_url_template'] ?? ''))],
@@ -129,7 +128,7 @@ final class Core
             }
         }
         $email = is_array($settings['email'] ?? null) ? $settings['email'] : [];
-        foreach (['mx_pattern', 'spf_pattern', 'dkim_cname_pattern'] as $field) {
+        foreach (['mx_pattern', 'spf_pattern'] as $field) {
             $pattern = (string) ($email[$field] ?? '');
             self::validateRE2($field === 'mx_pattern' ? str_replace('{domain}', 'example\\.com', $pattern) : $pattern, $field);
         }

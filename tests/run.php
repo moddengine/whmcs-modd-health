@@ -14,9 +14,11 @@ $settings['email'] = [
     'mx_pattern' => '^mx\\.{domain}$',
     'spf_pattern' => '^v=spf1',
     'dkim_selectors' => ['default'],
-    'dkim_cname_pattern' => '^dkim\\.example$',
 ];
 Core::validateSettings($settings, true);
+$legacySettings = $settings;
+$legacySettings['email']['dkim_cname_pattern'] = '[';
+Core::validateSettings($legacySettings, true);
 
 $posted = Core::settingsFromPost([
     'products_email' => ['3'],
@@ -24,7 +26,6 @@ $posted = Core::settingsFromPost([
     'mx_pattern' => 'invalid pattern',
     'spf_pattern' => '^v=spf1',
     'dkim_selectors' => 'default',
-    'dkim_cname_pattern' => '^dkim\\.example$',
     'legacy_url_template' => 'https://{domain}/legacy',
     'container_url_template' => 'https://{domain}/container',
     'database_tls' => 'required',
@@ -32,6 +33,7 @@ $posted = Core::settingsFromPost([
 assert($posted['products']['email'] === [3]);
 assert($posted['hosting_ipv4'] === ['192.0.2.2', 'invalid']);
 assert($posted['email']['mx_pattern'] === 'invalid pattern');
+assert(!array_key_exists('dkim_cname_pattern', $posted['email']));
 assert($posted['container']['url_template'] === 'https://{domain}/container');
 assert($posted['database_tls'] === 'required');
 

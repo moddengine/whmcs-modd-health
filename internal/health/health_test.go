@@ -130,7 +130,7 @@ func TestAuthorityRequiresOneCompleteServer(t *testing.T) {
 func TestMXPatternExpandsDomainLiterally(t *testing.T) {
 	config := validJob().Configuration
 	config.Email.MXPattern = `^mx\.{domain}$`
-	config.Email.DKIMCNAMEPattern = `^dkim\.example$`
+	config.Email.DKIMCNAMEPattern = `[` // Obsolete settings must be ignored.
 	if err := ValidateConfiguration(config); err != nil {
 		t.Fatalf("placeholder pattern should validate: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestMXPatternExpandsDomainLiterally(t *testing.T) {
 	records := map[string][]string{
 		"mx":           {"mx.example.com"},
 		"spf":          {"v=spf1 -all"},
-		"dkim:default": {"dkim.example"},
+		"dkim:default": {testDKIMRecord},
 	}
 	if errors := validateAuthority(site, config, records); len(errors) != 0 {
 		t.Fatalf("placeholder pattern should match: %v", errors)
@@ -186,7 +186,7 @@ func validJob() Job {
 		WebhookURL: "https://chat.googleapis.com/x",
 		Configuration: Configuration{
 			HostingIPv4: []string{"192.0.2.10"},
-			Email:       EmailConfig{MXPattern: `^mx\\.example$`, SPFPattern: `^v=spf1`, DKIMSelectors: []string{"default"}, DKIMCNAMEPattern: `^dkim\\.example$`},
+			Email:       EmailConfig{MXPattern: `^mx\\.example$`, SPFPattern: `^v=spf1`, DKIMSelectors: []string{"default"}},
 			Legacy:      HTTPConfig{URLTemplate: "https://{domain}/~/health/check"}, Container: HTTPConfig{URLTemplate: "https://{domain}/~/health/check"},
 		},
 		Sites: []Site{{ServiceID: 1, ClientID: 2, ProductID: 3, Domain: "example.com", Profile: "legacy"}},

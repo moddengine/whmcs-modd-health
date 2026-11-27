@@ -68,7 +68,7 @@ For the service domain:
 - At least one MX record must exist.
 - Every returned MX target must match the configured MX regular expression.
 - Exactly one SPF TXT record beginning with `v=spf1` must exist and match the configured SPF regular expression.
-- For every configured DKIM selector, `<selector>._domainkey.<domain>` must have a CNAME whose target matches the configured DKIM CNAME regular expression.
+- For every configured DKIM selector, `<selector>._domainkey.<domain>` must publish exactly one TXT record containing a usable DKIM public key (RSA or Ed25519).
 
 Email Hosting does not perform an apex A-record or HTTP health check.
 
@@ -161,7 +161,7 @@ The addon configuration provides:
 - Email MX regular expression.
 - Email SPF regular expression.
 - DKIM selector list.
-- DKIM CNAME regular expression.
+- DKIM TXT public-key validation; old CNAME patterns are ignored.
 - Google Chat webhook as a password field.
 
 Products assigned to the same profile share that profile's expectations. A product ID must not appear in more than one profile.
@@ -217,7 +217,7 @@ Installation documentation must cover:
 - Exercise every profile with fake DNS results and an HTTP test server.
 - Cover missing and unexpected A and MX records.
 - Cover valid, missing, duplicate, and non-matching SPF records.
-- Cover valid, missing, and non-matching DKIM CNAME records.
+- Cover valid, missing, revoked, malformed, and split-string DKIM TXT public-key records.
 - Cover direct HTTP `200`, redirects, non-`200` responses, TLS errors, network errors, and timeouts.
 - Verify deterministic offsets remain inside five minutes.
 - Verify every site's complete check set shares one 60-second deadline.
